@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function member(gardenId) {
+      return signedIn() && exists(/databases/$(database)/documents/gardens/$(gardenId)/members/$(request.auth.uid));
+    }
+    function owner(gardenId) {
+      return signedIn() && get(/databases/$(database)/documents/gardens/$(gardenId)).data.ownerUid == request.auth.uid;
+    }
+    function mine() { return signedIn() && resource.data.uid == request.auth.uid; }
+    function creatingMine() { return signedIn() && request.resource.data.uid == request.auth.uid; }
+
+    match /gardens/{gardenId} {
+      allow read: if member(gardenId);
+      allow create: if signedIn() && !exists(/databases/$(database)/documents/gardens/$(gardenId))
+                    && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if owner(gardenId) && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if false;
+
+      match /allowedEmails/{emailId} {
+        allow read: if signedIn() && (owner(gardenId) || emailId == request.auth.token.email);
+        allow create: if owner(gardenId);
+        allow update: if (
+          owner(gardenId)
+          && request.resource.data.claimedUid == resource.data.claimedUid
+        ) || (
+          signedIn()
+          && emailId == request.auth.token.email
+          && resource.data.claimedUid == null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedUid', 'claimedAt'])
+          && request.resource.data.claimedUid == request.auth.uid
+        );
+        allow delete: if owner(gardenId) && resource.data.claimedUid == null;
+      }
+
+      match /members/{uid} {
+        allow read: if signedIn() && (uid == request.auth.uid || member(gardenId));
+        allow create: if signedIn() && uid == request.auth.uid && (
+          (
+            getAfter(/databases/$(database)/documents/gardens/$(gardenId)).data.ownerUid == request.auth.uid
+            && request.resource.data.role == 'owner'
+          ) || (
+            getAfter(/databases/$(database)/documents/gardens/$(gardenId)/allowedEmails/$(request.auth.token.email)).data.claimedUid == request.auth.uid
+            && request.resource.data.role == 'member'
+          )
+        );
+        allow update: if signedIn() && uid == request.auth.uid
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name', 'baseBible', 'baseLife', 'bibleProgress', 'lifeProgress',
+            'bibleRead', 'lifeRead', 'readingDates'
+          ]);
+        allow delete: if false;
+      }
+
+      match /logs/{logId} {
+        allow read: if member(gardenId);
+        allow create: if member(gardenId) && creatingMine();
+        allow update: if member(gardenId) && mine()
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['note']);
+        allow delete: if member(gardenId) && mine();
+      }
+
+      match /rewards/{rewardId} {
+        allow read: if member(gardenId);
+        allow create: if member(gardenId) && creatingMine();
+        allow update: if member(gardenId) && mine()
+          && request.resource.data.uid == resource.data.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emoji', 'x', 'y']);
+        allow delete: if member(gardenId) && mine();
+      }
+    }
+  }
+}

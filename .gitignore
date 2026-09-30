@@ -15,7 +15,6 @@
 
 # next.js
 /.next/
-/.vinext/
 /out/
 
 # misc
@@ -24,22 +23,25 @@
 
 # debug
 npm-debug.log*
+firebase-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
 
 # typescript
 next-env.d.ts
+tsconfig.tsbuildinfo
 /dist/
 /.wrangler/
-# Checkout-local execution profile and tool state; never publish them.
 /.sites-runtime/
+/.firebase/
 /.agents/
 /.codex/
 /outputs/
