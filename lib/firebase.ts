@@ -1,5 +1,11 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import {
+  browserSessionPersistence,
+  getAuth,
+  GoogleAuthProvider,
+  initializeAuth,
+  type Auth,
+} from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -15,7 +21,17 @@ export const firebaseReady = Object.values(firebaseConfig).every(Boolean);
 export const firebaseApp = firebaseReady
   ? (getApps().length ? getApp() : initializeApp(firebaseConfig))
   : null;
-export const auth = firebaseApp ? getAuth(firebaseApp) : null;
+let sessionAuth: Auth | null = null;
+if (firebaseApp && typeof window !== "undefined") {
+  try {
+    sessionAuth = initializeAuth(firebaseApp, {
+      persistence: browserSessionPersistence,
+    });
+  } catch {
+    sessionAuth = getAuth(firebaseApp);
+  }
+}
+export const auth = sessionAuth;
 export const db = firebaseApp ? getFirestore(firebaseApp) : null;
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
