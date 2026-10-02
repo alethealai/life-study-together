@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useState} from 'react';
-import {onAuthStateChanged,signInWithPopup,signOut,type User} from 'firebase/auth';
+import {getRedirectResult,onAuthStateChanged,signInWithRedirect,signOut,type User} from 'firebase/auth';
 import {Leaf,LogIn} from 'lucide-react';
 import GardenApp from './garden-app';
 import {auth,firebaseReady,googleProvider} from '@/lib/firebase';
@@ -9,7 +9,15 @@ import {claimInvitation,createGarden,findInvitation,watchMembership,type Members
 export default function Home(){
  const [user,setUser]=useState<User|null>(null),[member,setMember]=useState<Membership|null>(null),[loading,setLoading]=useState(firebaseReady),[message,setMessage]=useState(''),[name,setName]=useState('');
  useEffect(()=>{
+  if(window.location.hostname==='alethealai.github.io'){
+   window.location.replace('https://life-study-together.firebaseapp.com/');
+   return;
+  }
   if(!auth)return
+  if(sessionStorage.getItem('google-sign-in-pending')==='true'){
+   sessionStorage.removeItem('google-sign-in-pending');
+   getRedirectResult(auth).catch(()=>setMessage('Google 登入沒有完成，請再試一次。'));
+  }
   let stopMembership:(()=>void)|undefined;
   const stopAuth=onAuthStateChanged(auth,u=>{
    stopMembership?.();stopMembership=undefined;setUser(u);setMember(null);setLoading(!!u);
@@ -18,7 +26,7 @@ export default function Home(){
   });
   return()=>{stopMembership?.();stopAuth()};
  },[]);
- async function login(){setMessage('');try{await signInWithPopup(auth!,googleProvider)}catch(e){const code=typeof e==='object'&&e&&'code' in e?String(e.code):'';setMessage(code==='auth/popup-closed-by-user'||code==='auth/popup-blocked'?'這個內建瀏覽器沒有完成 Google 登入。請用 Safari 或 Chrome 開啟本網站後再登入。':'Google 登入沒有完成，請稍後再試一次。')}}
+ async function login(){setMessage('');sessionStorage.setItem('google-sign-in-pending','true');try{await signInWithRedirect(auth!,googleProvider)}catch{sessionStorage.removeItem('google-sign-in-pending');setMessage('Google 登入沒有完成，請稍後再試一次。')}}
  async function join(){if(!user)return;setLoading(true);setMessage('');try{const invite=await findInvitation(user);if(invite.exists())await claimInvitation(user);else await createGarden(user,name||user.displayName||'花園主人');}catch(e){setMessage(e instanceof Error?e.message:'無法加入花園。若花園已建立，請請管理員邀請你的 Gmail。')}finally{setLoading(false)}}
  if(!firebaseReady)return <Gate title="尚未連接 Firebase" detail="網站程式已準備好，完成 Firebase 專案設定後即可使用 Google 登入與共享進度。"/>;
  if(loading)return <Gate title="正在進入共讀花園…" detail="正在確認你的帳號與花園身分。"/>;
