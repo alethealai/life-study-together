@@ -2,7 +2,6 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 import {
   browserSessionPersistence,
   getAuth,
-  GoogleAuthProvider,
   initializeAuth,
   type Auth,
 } from "firebase/auth";
@@ -33,5 +32,3 @@ if (firebaseApp && typeof window !== "undefined") {
 }
 export const auth = sessionAuth;
 export const db = firebaseApp ? getFirestore(firebaseApp) : null;
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: "select_account" });
