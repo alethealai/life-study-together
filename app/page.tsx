@@ -18,7 +18,7 @@ export default function Home(){
   });
   return()=>{stopMembership?.();stopAuth()};
  },[]);
- async function login(){setMessage('');try{await signInWithPopup(auth!,googleProvider)}catch(e){setMessage(e instanceof Error?e.message:'登入失敗，請再試一次。')}}
+ async function login(){setMessage('');try{await signInWithPopup(auth!,googleProvider)}catch(e){const code=typeof e==='object'&&e&&'code' in e?String(e.code):'';setMessage(code==='auth/popup-closed-by-user'||code==='auth/popup-blocked'?'這個內建瀏覽器沒有完成 Google 登入。請用 Safari 或 Chrome 開啟本網站後再登入。':'Google 登入沒有完成，請稍後再試一次。')}}
  async function join(){if(!user)return;setLoading(true);setMessage('');try{const invite=await findInvitation(user);if(invite.exists())await claimInvitation(user);else await createGarden(user,name||user.displayName||'花園主人');}catch(e){setMessage(e instanceof Error?e.message:'無法加入花園。若花園已建立，請請管理員邀請你的 Gmail。')}finally{setLoading(false)}}
  if(!firebaseReady)return <Gate title="尚未連接 Firebase" detail="網站程式已準備好，完成 Firebase 專案設定後即可使用 Google 登入與共享進度。"/>;
  if(loading)return <Gate title="正在進入共讀花園…" detail="正在確認你的帳號與花園身分。"/>;
