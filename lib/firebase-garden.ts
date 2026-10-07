@@ -26,7 +26,32 @@ export async function ensureLegacyGardenIndex(user:User){
   await setDoc(userGardenRef(user.uid,GARDEN_ID),{gardenId:GARDEN_ID,name:String(garden.data()?.name??'共讀花園'),role:m.role,joinedAt:serverTimestamp()},{merge:true});
 }
 export function watchUserGardens(uid:string,callback:(gardens:GardenSummary[])=>void,onError:(e:Error)=>void){
-  return onSnapshot(collection(db!,"users",uid,"gardens"),s=>callback(s.docs.map(d=>({id:d.id,name:String(d.data().name??'共讀花園'),role:d.data().role as Membership['role'],inviteCode:d.data().inviteCode?String(d.data().inviteCode):undefined}))),onError);
+  const rows=new Map<string,GardenSummary>(),listeners=new Map<string,Unsubscribe>();
+  const emit=()=>callback([...rows.values()]);
+  const stop=onSnapshot(collection(db!,"users",uid,"gardens"),s=>{
+    const ids=new Set(s.docs.map(d=>d.id));
+    for(const [id,unsubscribe] of listeners)if(!ids.has(id)){unsubscribe();listeners.delete(id);rows.delete(id)}
+    for(const d of s.docs){
+      if(listeners.has(d.id))continue;
+      listeners.set(d.id,onSnapshot(gardenRef(d.id),root=>{
+        if(root.exists()){const data=root.data();rows.set(d.id,{id:d.id,name:String(data.name??'共讀花園'),role:d.data().role as Membership['role'],inviteCode:data.inviteCode?String(data.inviteCode):undefined})}else rows.delete(d.id);
+        emit();
+      },onError));
+    }
+    if(!s.docs.length)emit();
+  },onError);
+  return ()=>{stop();listeners.forEach(unsubscribe=>unsubscribe())};
+}
+export async function renameGarden(gardenId:string,name:string){
+  const trimmed=name.trim();
+  if(!trimmed||trimmed.length>30)throw new Error('花園名稱請填寫 1–30 個字。');
+  await runTransaction(db!,async tx=>{
+    const root=await tx.get(gardenRef(gardenId));
+    if(!root.exists())throw new Error('找不到這座花園。');
+    const code=root.data().inviteCode;
+    tx.update(root.ref,{name:trimmed});
+    if(code)tx.update(doc(db!,"gardenInvites",String(code)),{name:trimmed});
+  });
 }
 export async function createNewGarden(user:User,data:{name:string;book:string;lifeBook:string;bibleTarget:number;lifeTarget:number}){
   let code='';for(let i=0;i<5;i++){const candidate=makeJoinCode();if(!(await getDoc(doc(db!,"gardenInvites",candidate))).exists()){code=candidate;break}}
