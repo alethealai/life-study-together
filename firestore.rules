@@ -5,24 +5,27 @@ service cloud.firestore {
     function member(gardenId) {
       return signedIn() && exists(/databases/$(database)/documents/gardens/$(gardenId)/members/$(request.auth.uid));
     }
-    function developer(gardenId) {
+    function gardenDeveloper(gardenId) {
       return signedIn() && get(/databases/$(database)/documents/gardens/$(gardenId)).data.ownerUid == request.auth.uid;
+    }
+    function platformDeveloper() {
+      return signedIn() && get(/databases/$(database)/documents/gardens/main).data.ownerUid == request.auth.uid;
     }
     function mine() { return signedIn() && resource.data.uid == request.auth.uid; }
     function creatingMine() { return signedIn() && request.resource.data.uid == request.auth.uid; }
 
     match /gardens/{gardenId} {
       allow read: if member(gardenId);
-      allow create: if signedIn() && !exists(/databases/$(database)/documents/gardens/$(gardenId))
+      allow create: if platformDeveloper() && !exists(/databases/$(database)/documents/gardens/$(gardenId))
                     && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if developer(gardenId) && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow update: if gardenDeveloper(gardenId) && request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if false;
 
       match /allowedEmails/{emailId} {
-        allow read: if signedIn() && (developer(gardenId) || emailId == request.auth.token.email);
-        allow create: if developer(gardenId);
+        allow read: if signedIn() && (gardenDeveloper(gardenId) || emailId == request.auth.token.email);
+        allow create: if gardenDeveloper(gardenId);
         allow update: if (
-          developer(gardenId)
+          gardenDeveloper(gardenId)
           && request.resource.data.claimedUid == resource.data.claimedUid
         ) || (
           signedIn()
@@ -31,7 +34,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedUid', 'claimedAt'])
           && request.resource.data.claimedUid == request.auth.uid
         );
-        allow delete: if developer(gardenId) && resource.data.claimedUid == null;
+        allow delete: if gardenDeveloper(gardenId) && resource.data.claimedUid == null;
       }
 
       match /members/{uid} {
@@ -41,8 +44,10 @@ service cloud.firestore {
             getAfter(/databases/$(database)/documents/gardens/$(gardenId)).data.ownerUid == request.auth.uid
             && request.resource.data.role in ['developer', 'owner']
           ) || (
-            getAfter(/databases/$(database)/documents/gardens/$(gardenId)/allowedEmails/$(request.auth.token.email)).data.claimedUid == request.auth.uid
-            && request.resource.data.role == 'member'
+            request.resource.data.role == 'member'
+            && request.resource.data.joinCode is string
+            && get(/databases/$(database)/documents/gardenInvites/$(request.resource.data.joinCode)).data.gardenId == gardenId
+            && get(/databases/$(database)/documents/gardenInvites/$(request.resource.data.joinCode)).data.active == true
           )
         );
         allow update: if signedIn() && uid == request.auth.uid
@@ -73,6 +78,23 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emoji', 'x', 'y']);
         allow delete: if member(gardenId) && mine();
       }
+    }
+
+    match /gardenInvites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if platformDeveloper()
+        && request.resource.data.gardenId is string
+        && getAfter(/databases/$(database)/documents/gardens/$(request.resource.data.gardenId)).data.ownerUid == request.auth.uid;
+      allow delete: if platformDeveloper();
+    }
+
+    match /users/{uid}/gardens/{gardenId} {
+      allow read: if signedIn() && uid == request.auth.uid;
+      allow create, update: if signedIn() && uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/gardens/$(gardenId)/members/$(uid)).data.uid == uid
+        && request.resource.data.role == getAfter(/databases/$(database)/documents/gardens/$(gardenId)/members/$(uid)).data.role;
+      allow delete: if false;
     }
   }
 }
