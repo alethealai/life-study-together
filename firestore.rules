@@ -5,7 +5,7 @@ service cloud.firestore {
     function member(gardenId) {
       return signedIn() && exists(/databases/$(database)/documents/gardens/$(gardenId)/members/$(request.auth.uid));
     }
-    function owner(gardenId) {
+    function developer(gardenId) {
       return signedIn() && get(/databases/$(database)/documents/gardens/$(gardenId)).data.ownerUid == request.auth.uid;
     }
     function mine() { return signedIn() && resource.data.uid == request.auth.uid; }
@@ -15,14 +15,14 @@ service cloud.firestore {
       allow read: if member(gardenId);
       allow create: if signedIn() && !exists(/databases/$(database)/documents/gardens/$(gardenId))
                     && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if owner(gardenId) && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow update: if developer(gardenId) && request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if false;
 
       match /allowedEmails/{emailId} {
-        allow read: if signedIn() && (owner(gardenId) || emailId == request.auth.token.email);
-        allow create: if owner(gardenId);
+        allow read: if signedIn() && (developer(gardenId) || emailId == request.auth.token.email);
+        allow create: if developer(gardenId);
         allow update: if (
-          owner(gardenId)
+          developer(gardenId)
           && request.resource.data.claimedUid == resource.data.claimedUid
         ) || (
           signedIn()
@@ -31,7 +31,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedUid', 'claimedAt'])
           && request.resource.data.claimedUid == request.auth.uid
         );
-        allow delete: if owner(gardenId) && resource.data.claimedUid == null;
+        allow delete: if developer(gardenId) && resource.data.claimedUid == null;
       }
 
       match /members/{uid} {
@@ -39,7 +39,7 @@ service cloud.firestore {
         allow create: if signedIn() && uid == request.auth.uid && (
           (
             getAfter(/databases/$(database)/documents/gardens/$(gardenId)).data.ownerUid == request.auth.uid
-            && request.resource.data.role == 'owner'
+            && request.resource.data.role in ['developer', 'owner']
           ) || (
             getAfter(/databases/$(database)/documents/gardens/$(gardenId)/allowedEmails/$(request.auth.token.email)).data.claimedUid == request.auth.uid
             && request.resource.data.role == 'member'

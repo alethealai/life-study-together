@@ -12,7 +12,7 @@ const gardenRef = () => doc(db!, "gardens", GARDEN_ID);
 const memberRef = (uid: string) => doc(db!, "gardens", GARDEN_ID, "members", uid);
 const emailId = (email: string) => email.trim().toLowerCase();
 
-export type Membership = { uid: string; name: string; email: string; role: "owner" | "member" };
+export type Membership = { uid: string; name: string; email: string; role: "developer" | "owner" | "member" };
 
 export async function findInvitation(user: User) {
   return getDoc(doc(db!, "gardens", GARDEN_ID, "allowedEmails", emailId(user.email ?? "")));
@@ -22,7 +22,7 @@ export async function createGarden(user: User, name: string) {
   const batch = writeBatch(db!);
   batch.set(gardenRef(), { ...initial().plan, ownerUid: user.uid, createdAt: serverTimestamp() });
   batch.set(memberRef(user.uid), {
-    uid: user.uid, name: name.trim(), email: user.email, role: "owner",
+    uid: user.uid, name: name.trim(), email: user.email, role: "developer",
     baseBible: 0, baseLife: 0, bibleProgress: 0, lifeProgress: 0,
     bibleRead: 0, lifeRead: 0, readingDates: [], joinedAt: serverTimestamp(),
   });
