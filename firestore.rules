@@ -12,13 +12,30 @@ service cloud.firestore {
       return signedIn() && get(/databases/$(database)/documents/gardens/main).data.ownerUid == request.auth.uid;
     }
     function mine() { return signedIn() && resource.data.uid == request.auth.uid; }
-    function creatingMine() { return signedIn() && request.resource.data.uid == request.auth.uid; }
+
+    function validName(name) { return name is string && name.size() > 0 && name.size() <= 40; }
+    function initialMember(uid) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['uid','name','email','role','joinCode','baseBible','baseLife','bibleProgress','lifeProgress','bibleRead','lifeRead','readingDates','joinedAt','schemaVersion','revision','logCount','lastReadDate'])
+        && d.uid == uid && d.email == request.auth.token.email && validName(d.name)
+        && d.baseBible == 0 && d.baseLife == 0 && d.bibleProgress == 0 && d.lifeProgress == 0
+        && d.bibleRead == 0 && d.lifeRead == 0 && d.readingDates == [] && d.joinedAt == request.time
+        && d.schemaVersion == 2 && d.revision == 0 && d.logCount == 0 && d.lastReadDate == null;
+    }
+    function validPosition(d) {
+      return (d.x == null && d.y == null) || (d.emoji is string && d.x is int && d.y is int
+        && d.x >= -1000000 && d.x <= 1000000 && d.y >= -1000000 && d.y <= 1000000);
+    }
+    function validEmoji(emoji) {
+      return emoji in ['🌱','🌷','🌼','🌻','🌿','🍀','🌳','🦋','🐈','🐕','🐢','🐇','🐳','🦊','🐧','⛵','🪐','⭐','🌙','☀️','🌈','🍞','🍎','🍓','🍉','🍕','☕','🎸','🎨','🎈','🏡','🚲','🧸','📚','🕊️','💛'];
+    }
 
     match /gardens/{gardenId} {
       allow read: if member(gardenId);
       allow create: if platformDeveloper() && !exists(/databases/$(database)/documents/gardens/$(gardenId))
                     && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if gardenDeveloper(gardenId) && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow update: if gardenDeveloper(gardenId) && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name','inviteCode']);
       allow delete: if false;
 
       match /allowedEmails/{emailId} {
@@ -39,7 +56,7 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if signedIn() && (uid == request.auth.uid || member(gardenId));
-        allow create: if signedIn() && uid == request.auth.uid && (
+        allow create: if signedIn() && uid == request.auth.uid && initialMember(uid) && (
           (
             getAfter(/databases/$(database)/documents/gardens/$(gardenId)).data.ownerUid == request.auth.uid
             && request.resource.data.role in ['developer', 'owner']
@@ -50,33 +67,39 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/gardenInvites/$(request.resource.data.joinCode)).data.active == true
           )
         );
-        allow update: if signedIn() && uid == request.auth.uid
-          && request.resource.data.uid == resource.data.uid
-          && request.resource.data.email == resource.data.email
-          && request.resource.data.role == resource.data.role
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'name', 'baseBible', 'baseLife', 'bibleProgress', 'lifeProgress',
-            'bibleRead', 'lifeRead', 'readingDates'
-          ]);
-        allow delete: if false;
+        // All progress and baseline mutations go through trusted transactions.
+        allow update, delete: if false;
+        match /requests/{requestId} { allow read, write: if false; }
+        match /readingPeriods/{periodId} {
+          allow read: if signedIn() && uid == request.auth.uid && member(gardenId);
+          allow write: if false;
+        }
       }
+
+      match /plans/{planId} { allow read: if member(gardenId); allow write: if false; }
 
       match /logs/{logId} {
         allow read: if member(gardenId);
-        allow create: if member(gardenId) && creatingMine();
+        allow create: if false;
         allow update: if member(gardenId) && mine()
           && request.resource.data.uid == resource.data.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['note']);
-        allow delete: if member(gardenId) && mine();
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['note'])
+          && request.resource.data.note is string && request.resource.data.note.size() <= 2000;
+        allow delete: if false;
       }
 
       match /rewards/{rewardId} {
         allow read: if member(gardenId);
-        allow create: if member(gardenId) && creatingMine();
+        allow create: if false;
         allow update: if member(gardenId) && mine()
           && request.resource.data.uid == resource.data.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emoji', 'x', 'y']);
-        allow delete: if member(gardenId) && mine();
+          && (
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['x','y']) && validPosition(request.resource.data))
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emoji'])
+              && resource.data.emoji == null && resource.data.x == null && resource.data.y == null
+              && validEmoji(request.resource.data.emoji))
+          );
+        allow delete: if false;
       }
     }
 

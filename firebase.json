@@ -1,4 +1,6 @@
 {
+  "functions": [{ "source": "functions", "codebase": "garden", "runtime": "nodejs22" }],
+  "emulators": { "firestore": { "port": 8080 }, "functions": { "port": 5001 }, "auth": { "port": 9099 }, "ui": { "enabled": false }, "singleProjectMode": true },
   "firestore": { "rules": "firestore.rules" },
   "hosting": {
     "site": "life-study-together",

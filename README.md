@@ -1,23 +1,27 @@
 # 共讀花園
 
-六位同伴共同記錄聖經與生命讀經進度的網站。每個人以自己的 Google 帳號登入，只能修改自己的閱讀進度與成就；花園主人可以邀請同伴並調整共同計畫。
+和熟悉的同伴一起閱讀，記錄各自的進度，讓閱讀累積成共同花園裡的 emoji。
 
-## 本機執行
+[前往共讀花園](https://life-study-together.firebaseapp.com/)
 
-1. 複製 `.env.example` 為 `.env.local`，填入 Firebase Web App 設定。
-2. 在 Firebase Authentication 啟用 Google 登入。
-3. 建立 Firestore Database，並執行 `firebase deploy --only firestore:rules` 部署規則。
-4. 執行 `npm install` 與 `npm run dev`。
+## 專案方向
 
-## GitHub Pages
+- 使用 Email／密碼登入，以邀請碼加入共讀花園。
+- 各花園獨立記錄閱讀進度，呈現共同計畫與同伴的閱讀旅程。
+- 透過閱讀取得 emoji，自由放進共同花園。
+- 保留個人閱讀歷史，不排名、不評分，也不提供聊天或社群互動。
 
-推送到 `main` 後，`.github/workflows/pages.yml` 會建立靜態網站並部署到 GitHub Pages。請在 GitHub repository variables 加入：
+專案目前仍在準備封閉測試，本機開發版本與已上線版本可能不同。
 
-- `FIREBASE_API_KEY`
-- `FIREBASE_AUTH_DOMAIN`
-- `FIREBASE_PROJECT_ID`
-- `FIREBASE_STORAGE_BUCKET`
-- `FIREBASE_MESSAGING_SENDER_ID`
-- `FIREBASE_APP_ID`
+## 本機開發
 
-Firebase Authentication 的授權網域也需要加入 GitHub Pages 網域，例如 `username.github.io`。
+使用 Node.js 22。
+
+```sh
+npm ci
+npm ci --prefix functions
+```
+
+複製 `.env.example` 為 `.env.local`，填入 Firebase Web App 設定，再執行 `npm run dev`。技術組成為 Next.js 靜態匯出、Firebase Authentication、Firestore、Cloud Functions 與 Firebase Hosting。
+
+測試、資料保存與發布方式見 [維護說明](docs/maintenance.md)。

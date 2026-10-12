@@ -1,13 +1,16 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import {
   browserSessionPersistence,
+  connectAuthEmulator,
   getAuth,
   initializeAuth,
   type Auth,
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 
-const firebaseConfig = {
+export const usingEmulators = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === "true";
+const firebaseConfig = usingEmulators ? {apiKey:"demo-key",authDomain:"demo-life-study.firebaseapp.com",projectId:"demo-life-study",storageBucket:"demo-life-study.appspot.com",messagingSenderId:"123456",appId:"demo-app"} : {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
@@ -32,3 +35,12 @@ if (firebaseApp && typeof window !== "undefined") {
 }
 export const auth = sessionAuth;
 export const db = firebaseApp ? getFirestore(firebaseApp) : null;
+
+export const functionsClient = firebaseApp ? getFunctions(firebaseApp, 'asia-east1') : null;
+const localRuntime = globalThis as typeof globalThis & {gardenEmulatorsConnected?:boolean};
+if (usingEmulators && typeof window !== 'undefined' && !localRuntime.gardenEmulatorsConnected) {
+  if (auth && !auth.emulatorConfig) connectAuthEmulator(auth, 'http://127.0.0.1:9099', {disableWarnings:true});
+  connectFirestoreEmulator(db!, '127.0.0.1', 8080);
+  connectFunctionsEmulator(functionsClient!, '127.0.0.1', 5001);
+  localRuntime.gardenEmulatorsConnected = true;
+}
