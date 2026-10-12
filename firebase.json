@@ -1,7 +1,30 @@
 {
-  "functions": [{ "source": "functions", "codebase": "garden", "runtime": "nodejs22" }],
-  "emulators": { "firestore": { "port": 8080 }, "functions": { "port": 5001 }, "auth": { "port": 9099 }, "ui": { "enabled": false }, "singleProjectMode": true },
-  "firestore": { "rules": "firestore.rules" },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "garden",
+      "runtime": "nodejs22"
+    }
+  ],
+  "emulators": {
+    "firestore": {
+      "port": 8080
+    },
+    "functions": {
+      "port": 5001
+    },
+    "auth": {
+      "port": 9099
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "hosting": {
     "site": "life-study-together",
     "public": "out",

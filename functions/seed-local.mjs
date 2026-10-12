@@ -11,4 +11,5 @@ for(const [uid,email,name,role] of [['local-owner','owner@example.test','測試�
   await db.doc(`users/${uid}/gardens/main`).set({gardenId:'main',name:'本機測試花園',role});
 }
 if(!(await db.doc('gardens/main').get()).exists)await db.doc('gardens/main').set({name:'本機測試花園',ownerUid:'local-owner',book:'約翰福音',lifeBook:'約翰福音',bibleTarget:1,lifeTarget:1,bibleStep:3,lifeStep:3,schemaVersion:2,planRevision:0,readingStarted:false});
+await (await import('./src/migrate-read-models.mjs')).migrateReadModels(db,'main',true);
 console.log('Local test garden ready. owner@example.test / GardenTest123!');

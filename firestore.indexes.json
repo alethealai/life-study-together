@@ -1,0 +1,8 @@
+{
+  "indexes": [
+    {"collectionGroup":"logs","queryScope":"COLLECTION","fields":[{"fieldPath":"uid","order":"ASCENDING"},{"fieldPath":"date","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
+    {"collectionGroup":"rewards","queryScope":"COLLECTION","fields":[{"fieldPath":"uid","order":"ASCENDING"},{"fieldPath":"x","order":"ASCENDING"},{"fieldPath":"date","order":"DESCENDING"},{"fieldPath":"__name__","order":"DESCENDING"}]},
+    {"collectionGroup":"placements","queryScope":"COLLECTION","fields":[{"fieldPath":"x","order":"ASCENDING"},{"fieldPath":"y","order":"ASCENDING"},{"fieldPath":"__name__","order":"ASCENDING"}]}
+  ],
+  "fieldOverrides": []
+}

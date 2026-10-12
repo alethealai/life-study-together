@@ -10,3 +10,6 @@ export const recordReading = onCall(options, request => service.record(request.a
 export const updateReadingProfile = onCall(options, request => service.profile(request.auth?.uid, request.data));
 
 export const updateReadingPlan = onCall(options, request => service.updatePlan(request.auth?.uid, request.data));
+
+export const updateGardenReward = onCall(options, request => service.reward(request.auth?.uid, request.data));
+export const renameReadingGarden = onCall(options, request => service.rename(request.auth?.uid, request.data));

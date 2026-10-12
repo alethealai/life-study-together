@@ -1,5 +1,6 @@
+import {writeMemberViews, placementSummary} from './read-models.mjs';
 import {cwwlBook,cwwlLabel,enabledTracks,CWWL_STEP} from './cwwl.mjs';
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { EMOJIS, BOOKS, CHAPTERS } from './catalog.mjs';
 import { requireThat, integer, fields, text, dateKey, validDate, validatePlan, validateMember, streakRewards } from './validation.mjs';
@@ -70,8 +71,10 @@ export function createGardenService(db, now = () => new Date()) {
         planRevision:g.planRevision, biblePeriod:g.biblePeriod ?? 0, lifePeriod:g.lifePeriod ?? 0, beforeBible:m.bibleProgress, beforeLife:m.lifeProgress,
         afterBible:data.bible, afterLife:data.life, revision:result.revision, requestId:data.requestId,
         rewardIds:rewards.map(r => r.id), createdAt:FieldValue.serverTimestamp()});
-      tx.update(member, {bibleProgress:data.bible, lifeProgress:data.life, cwwlProgress:data.cwwl??0, bibleRead, lifeRead, cwwlRead, readingDates:dates,
-        revision:result.revision, logCount:m.logCount + 1, lastReadDate:dates.at(-1), lastLogId:log.id});
+      const memberChanges = {bibleProgress:data.bible, lifeProgress:data.life, cwwlProgress:data.cwwl??0, bibleRead, lifeRead, cwwlRead, readingDates:dates,
+        revision:result.revision, logCount:m.logCount + 1, lastReadDate:dates.at(-1), lastLogId:log.id, inventoryRevision:(m.inventoryRevision ?? 0) + (rewards.length ? 1 : 0)};
+      tx.update(member, memberChanges);
+      writeMemberViews(tx, garden, {...m,...memberChanges});
       if (!g.readingStarted) tx.update(garden, {readingStarted:true});
       for (const {id, ...reward} of rewards) {
         // create, rather than set: a collision aborts the whole transaction, preserving old rewards.
@@ -94,10 +97,12 @@ export function createGardenService(db, now = () => new Date()) {
       const changedBible = data.bible !== m.baseBible, changedLife = data.life !== m.baseLife;
       requireThat((!changedBible || m.bibleRead === (m.archivedBibleRead ?? 0)) && (!changedLife || m.lifeRead === (m.archivedLifeRead ?? 0)), '已有閱讀紀錄，無法修改加入前的起始位置。', 'failed-precondition');
       requireThat(data.bible <= CHAPTERS[BOOKS.indexOf(g.book)], '起始位置超出書卷範圍。');
-      tx.update(member, {name:data.name.trim(), revision:m.revision + 1,
+      const changes = {name:data.name.trim(), revision:m.revision + 1,
         ...(changedBible ? {baseBible:data.bible, bibleProgress:data.bible} : {}),
         ...(changedLife ? {baseLife:data.life, lifeProgress:data.life} : {}),
-        ...(changedCwwl ? {baseCwwl:data.cwwl,cwwlProgress:data.cwwl}: {})});
+        ...(changedCwwl ? {baseCwwl:data.cwwl,cwwlProgress:data.cwwl}: {})};
+      tx.update(member, changes);
+      writeMemberViews(tx, garden, {...m,...changes});
       return {gained:0};
     });
   }
@@ -126,8 +131,8 @@ export function createGardenService(db, now = () => new Date()) {
         '開始閱讀後，獎勵門檻固定，換書也會沿用。', 'failed-precondition');
       const changed = ['bible','life'].filter(kind => next[kind === 'bible' ? 'book' : 'lifeBook'] !== g[kind === 'bible' ? 'book' : 'lifeBook']);
       if(Object.hasOwn(next,'cwwlBookId') && next.cwwlBookId!== (g.cwwlBookId??null))changed.push('cwwl');
-      const members = changed.length ? await tx.get(garden.collection('members').limit(101)) : null;
-      requireThat(!members || members.size <= 100, '成員數超出本次換書支援範圍。', 'failed-precondition');
+      const members = changed.length ? await tx.get(garden.collection('members').limit(61)) : null;
+      requireThat(!members || members.size <= 60, '成員數超出本次換書支援範圍。', 'failed-precondition');
       if (members) for (const row of members.docs) {
         requireThat(row.data().schemaVersion === 2 && row.data().uid === row.id, '成員資料尚待核對。', 'failed-precondition');
         validateMember(row.data(), g);
@@ -151,6 +156,7 @@ export function createGardenService(db, now = () => new Date()) {
           changes[`archived${cap}Read`] = m[`${kind}Read`]??0;
         }
         tx.update(row.ref, changes);
+        writeMemberViews(tx, garden, {...m,...changes});
       }
       const changes = {...next, planRevision:revision};
       for (const kind of changed) {
@@ -167,5 +173,73 @@ export function createGardenService(db, now = () => new Date()) {
       return result;
     });
   }
-  return {record, profile, updatePlan};
+  async function reward(uid, data) {
+    const {garden, member} = refs(uid, data);
+    fields(data, ['gardenId','action','id', ...['placement','emoji','x','y'].filter(k=>Object.hasOwn(data,k))]);
+    requireThat(['choose','place','collect'].includes(data.action) && text(data.id,1,200)
+      && !data.id.includes('/') && (data.placement === undefined || data.placement === true), '擺設資料格式不正確。');
+    requireThat(data.action !== 'choose' || (!data.placement && EMOJIS.includes(data.emoji)), '請選擇有效的 emoji。');
+    requireThat(data.action !== 'place' || (integer(data.x,-1000000,1000000) && integer(data.y,-1000000,1000000)), '請選擇有效的位置。');
+    return db.runTransaction(async tx => {
+      const {g,m} = await state(tx,garden,member,uid);
+      let id = data.id;
+      if (data.placement) {
+        const link = await tx.get(garden.collection('placementLinks').doc(id));
+        requireThat(link.exists && link.data().uid === uid, '只能修改自己的擺設。', 'permission-denied');
+        id = link.data().rewardId;
+      }
+      const ref = garden.collection('rewards').doc(id), snapshot = await tx.get(ref);
+      requireThat(snapshot.exists && snapshot.data().uid === uid, '只能修改自己的獎勵。', 'permission-denied');
+      const r = snapshot.data(), placementId = r.placementId ?? randomUUID();
+      let changes;
+      if (data.action === 'choose') {
+        requireThat(r.emoji === null && r.x === null && r.y === null, '這個獎勵已經選過了。', 'failed-precondition');
+        changes = {emoji:data.emoji};
+      } else if (data.action === 'collect') {
+        if (r.x === null && r.y === null) return {gained:0};
+        changes = {x:null,y:null};
+      } else {
+        requireThat(EMOJIS.includes(r.emoji), '請先選擇 emoji。', 'failed-precondition');
+        if (r.x === data.x && r.y === data.y) return {gained:0};
+        const nearby = await tx.get(garden.collection('placements')
+          .where('x','>=',data.x-48).where('x','<=',data.x+48)
+          .where('y','>=',data.y-48).where('y','<=',data.y+48).limit(100));
+        requireThat(nearby.size < 100 && !nearby.docs.some(d=>d.id!==placementId && Math.hypot(d.data().x-data.x,d.data().y-data.y)<48),
+          '這裡離另一個擺設太近了，請選一個空位。', 'failed-precondition');
+        changes = {x:data.x,y:data.y,placementId};
+      }
+      tx.update(ref,changes);
+      if (data.action === 'place') {
+        tx.set(garden.collection('placements').doc(placementId),placementSummary({...r,...changes}));
+        tx.set(garden.collection('placementLinks').doc(placementId),{uid,rewardId:id});
+        // This shared revision also serializes concurrent placement/collision checks.
+        tx.update(garden,{hasPlacedEmoji:true,placementRevision:(g.placementRevision ?? 0)+1});
+      } else if (data.action === 'collect') {
+        requireThat(r.placementId, '擺設資料尚待管理者核對。', 'failed-precondition');
+        tx.delete(garden.collection('placements').doc(placementId));
+        tx.update(garden,{placementRevision:(g.placementRevision ?? 0)+1});
+      }
+      const inventoryRevision = (m.inventoryRevision ?? 0)+1;
+      tx.update(member,{inventoryRevision});
+      writeMemberViews(tx,garden,{...m,inventoryRevision});
+      return {gained:0};
+    });
+  }
+  async function rename(uid,data) {
+    const {garden,member}=refs(uid,data);
+    fields(data,['gardenId','name']);
+    requireThat(text(data.name,1,30) && data.name.trim().length>0,'花園名稱請填寫 1–30 個字。');
+    return db.runTransaction(async tx=>{
+      const {g}=await state(tx,garden,member,uid);
+      requireThat(g.ownerUid===uid,'只有花園管理者可以改名。','permission-denied');
+      const members=await tx.get(garden.collection('members').limit(61));
+      requireThat(members.size<=60,'成員數超出本次支援範圍。','failed-precondition');
+      const name=data.name.trim();
+      tx.update(garden,{name});
+      if(g.inviteCode)tx.update(db.doc(`gardenInvites/${g.inviteCode}`),{name});
+      for(const m of members.docs)tx.set(db.doc(`users/${m.id}/gardens/${garden.id}`),{gardenId:garden.id,name,role:m.data().role},{merge:true});
+      return {gained:0};
+    });
+  }
+  return {record, profile, updatePlan, reward, rename};
 }

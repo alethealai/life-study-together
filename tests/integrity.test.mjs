@@ -9,6 +9,7 @@ const requireBackend=createRequire(new URL('../functions/package.json',import.me
 const {initializeApp,deleteApp}=requireBackend('firebase-admin/app');
 const {getFirestore,Timestamp}=requireBackend('firebase-admin/firestore');
 import { createGardenService } from '../functions/src/service.mjs';
+import {memberSummary,privateProgress} from '../functions/src/read-models.mjs';
 import { auditGarden } from '../functions/src/audit.mjs';
 
 const projectId = 'demo-life-study';
@@ -113,21 +114,22 @@ test('members cannot forge summaries, create rewards/logs, delete readings or mu
   await assertFails(updateDoc(doc(alice,logPath),{note:'x'.repeat(2001)}));
   await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),logPath)));
 });
-test('choice is allowed once under concurrency; random rewards immutable; positions validated', async () => {
+test('choice is allowed once through trusted transaction; direct reward mutations rejected', async () => {
   await db.doc('gardens/main/rewards/alice-combo-1').set({uid:'alice',emoji:null,x:null,y:null});
   const alice=userDb('alice'), ref=doc(alice,'gardens/main/rewards/alice-combo-1');
-  await assertFails(updateDoc(ref,{emoji:'anything'}));
-  const chosen=await Promise.allSettled([updateDoc(ref,{emoji:'🌱'}),updateDoc(ref,{emoji:'🌷'})]);
+  const change=extra=>({gardenId:'main',action:'choose',id:'alice-combo-1',emoji:'🌱',...extra});
+  await assertFails(updateDoc(ref,{emoji:'🌱'}));
+  await assert.rejects(service.reward('alice',change({emoji:'anything'})),{code:'invalid-argument'});
+  const chosen=await Promise.allSettled([service.reward('alice',change()),service.reward('alice',change({emoji:'🌷'}))]);
   assert.equal(chosen.filter(r=>r.status==='fulfilled').length,1);
-  await assertFails(updateDoc(ref,{emoji:'🌻'}));
-  await assertSucceeds(updateDoc(ref,{x:100,y:-50}));
-  await assertFails(updateDoc(ref,{x:1.5,y:0}));
-  await assertFails(updateDoc(ref,{x:0,y:null}));
-  await assertFails(updateDoc(ref,{x:1000001,y:0}));
-  await assertSucceeds(updateDoc(ref,{x:null,y:null}));
+  await assert.rejects(service.reward('alice',change()),{code:'failed-precondition'});
+  for(const coords of [{x:1.5,y:0},{x:0,y:null},{x:1000001,y:0}])await assert.rejects(service.reward('alice',{gardenId:'main',action:'place',id:'alice-combo-1',...coords}),{code:'invalid-argument'});
+  await assertFails(updateDoc(ref,{x:100,y:-50}));
+  await service.reward('alice',{gardenId:'main',action:'place',id:'alice-combo-1',x:100,y:-50});
+  await service.reward('alice',{gardenId:'main',action:'collect',id:'alice-combo-1'});
   await assertFails(deleteDoc(ref));
   await service.record('alice',input());
-  await assertFails(updateDoc(doc(alice,'gardens/main/rewards/alice-bible-1'),{emoji:'🎸'}));
+  await assert.rejects(service.reward('alice',change({id:'alice-bible-1'})),{code:'failed-precondition'});
 });
 test('membership create cannot smuggle progress, identity, history or rewards', async () => {
   await db.doc('gardenInvites/code').set({gardenId:'main',active:true});
@@ -136,7 +138,11 @@ test('membership create cannot smuggle progress, identity, history or rewards', 
     const data={...member('new'),joinedAt:serverTimestamp(),joinCode:'code',...patch};
     await assertFails(setDoc(doc(alice,'gardens/main/members/new'),data));
   }
-  await assertSucceeds(setDoc(doc(alice,'gardens/main/members/new'),{...member('new'),joinedAt:serverTimestamp(),joinCode:'code'}));
+  const data={...member('new'),joinedAt:serverTimestamp(),joinCode:'code'},batch=writeBatch(alice);
+  batch.set(doc(alice,'gardens/main/members/new'),data);
+  batch.set(doc(alice,'gardens/main/memberSummaries/new'),memberSummary(data));
+  batch.set(doc(alice,'gardens/main/members/new/private/progress'),privateProgress(data));
+  await assertSucceeds(batch.commit());
 });
 test('atomic forged batch cannot bypass server-owned fields',async()=>{
   const alice=userDb('alice'),batch=writeBatch(alice);
@@ -234,7 +240,8 @@ test('fixed thresholds, stale profiles, pre-switch dates and direct owner plan e
   await assert.rejects(service.record('alice',input({bible:1,expectedRevision:2,planRevision:1,date:'2026-10-10'})),{code:'invalid-argument'});
   const owner=userDb('owner');
   for(const patch of [{book:'詩篇'},{bibleStep:1},{planRevision:12},{readingStarted:false}])await assertFails(updateDoc(doc(owner,'gardens/main'),patch));
-  await assertSucceeds(updateDoc(doc(owner,'gardens/main'),{name:'新花園名'}));
+  await assertFails(updateDoc(doc(owner,'gardens/main'),{name:'新花園名'}));
+  await service.rename('owner',{gardenId:'main',name:'新花園名'});
   await assertSucceeds(getDoc(doc(userDb('alice'),'gardens/main/members/alice/readingPeriods/bible-0')));
   await assertFails(getDoc(doc(userDb('bob'),'gardens/main/members/alice/readingPeriods/bible-0')));
   await assertFails(updateDoc(doc(userDb('alice'),'gardens/main/members/alice/readingPeriods/bible-0'),{progress:20}));
