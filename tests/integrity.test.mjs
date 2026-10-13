@@ -135,10 +135,10 @@ test('membership create cannot smuggle progress, identity, history or rewards', 
   await db.doc('gardenInvites/code').set({gardenId:'main',active:true});
   const alice=userDb('new');
   for(const patch of [{uid:'owner'},{bibleRead:100},{baseBible:100},{revision:1},{readingDates:['2026-10-01']},{logCount:2}]) {
-    const data={...member('new'),joinedAt:serverTimestamp(),joinCode:'code',...patch};
+    const data={...member('new'),onboardingComplete:false,joinedAt:serverTimestamp(),joinCode:'code',...patch};
     await assertFails(setDoc(doc(alice,'gardens/main/members/new'),data));
   }
-  const data={...member('new'),joinedAt:serverTimestamp(),joinCode:'code'},batch=writeBatch(alice);
+  const data={...member('new'),onboardingComplete:false,joinedAt:serverTimestamp(),joinCode:'code'},batch=writeBatch(alice);
   batch.set(doc(alice,'gardens/main/members/new'),data);
   batch.set(doc(alice,'gardens/main/memberSummaries/new'),memberSummary(data));
   batch.set(doc(alice,'gardens/main/members/new/private/progress'),privateProgress(data));

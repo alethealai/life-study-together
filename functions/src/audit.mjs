@@ -43,6 +43,6 @@ export function auditGarden(garden, members, logs, rewards, periods = []) {
     if (expected.size) issues.push(`${member.id}: 缺少 ${expected.size} 個應有獎勵`);
     patches.push({id:member.id, data:{schemaVersion:2, revision:member.revision ?? 0, logCount:mine.length, lastReadDate:dates.at(-1) ?? null}});
   }
-  return {issues, patches, gardenPatch:{schemaVersion:2, planRevision:garden.planRevision ?? 0, readingStarted:logs.length > 0},
+  return {issues, patches, gardenPatch:{schemaVersion:2, planRevision:garden.planRevision ?? 0, readingStarted:garden.readingStarted === true || logs.length > 0},
     unlabeledLogs:logs.filter(l => !l.book || !l.lifeBook).length};
 }

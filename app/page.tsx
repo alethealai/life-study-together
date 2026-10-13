@@ -2,9 +2,10 @@
 import {useEffect,useState} from 'react';
 import {createUserWithEmailAndPassword,onAuthStateChanged,sendPasswordResetEmail,signInWithEmailAndPassword,signOut,type User} from 'firebase/auth';
 import {Leaf} from 'lucide-react';
+import JoinGardenForm from './join-garden';
 import GardenApp from './garden-app';
 import {auth,firebaseReady} from '@/lib/firebase';
-import {ensureLegacyGardenIndex,joinGarden,JOIN_EMOJIS,watchUserGardens,type GardenSummary} from '@/lib/firebase-garden';
+import {ensureLegacyGardenIndex,watchUserGardens,type GardenSummary} from '@/lib/firebase-garden';
 
 export default function Home(){
  const [user,setUser]=useState<User|null>(null),[gardens,setGardens]=useState<GardenSummary[]>([]),[activeId,setActiveId]=useState(''),[loading,setLoading]=useState(firebaseReady),[message,setMessage]=useState('');
@@ -39,7 +40,6 @@ export default function Home(){
  const active=gardens.find(g=>g.id===activeId)??gardens[0],isDeveloper=gardens.some(g=>g.role==='developer'||g.role==='owner');
  return <GardenApp key={`${user.uid}:${active.id}`} user={user} garden={active} gardens={gardens} isDeveloper={isDeveloper} onSelectGarden={selectGarden} onSignOut={()=>signOut(auth!)}/>;
 }
-function JoinGate({user,onJoined,onSignOut}:{user:User;onJoined:(id:string)=>void;onSignOut:()=>void}){const [code,setCode]=useState<string[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState('');const submit=async()=>{if(code.length!==6)return;setBusy(true);setMessage('');try{onJoined(await joinGarden(user,code.join('')))}catch(e){setMessage(e instanceof Error?e.message:'無法加入花園。')}finally{setBusy(false)}};return <Gate title="加入共讀花園" detail="依序選擇花園主人給你的六個 emoji。"><EmojiCode value={code} onChange={setCode}/><button className="primary full" disabled={busy||code.length!==6} onClick={submit}>{busy?'正在加入…':'加入這座花園'}</button><button className="text-button full" onClick={onSignOut}>登出</button>{message&&<p className="gate-error">{message}</p>}</Gate>}
-function EmojiCode({value,onChange}:{value:string[];onChange:(value:string[])=>void}){return <div className="emoji-code"><div className="emoji-code-slots">{Array.from({length:6},(_,i)=><button key={i} type="button" onClick={()=>onChange(value.slice(0,i))}>{value[i]??'·'}</button>)}</div><div className="emoji-code-picker">{JOIN_EMOJIS.map(emoji=><button key={emoji} type="button" disabled={value.includes(emoji)||value.length===6} onClick={()=>onChange([...value,emoji])}>{emoji}</button>)}</div><button className="text-button" type="button" disabled={!value.length} onClick={()=>onChange([])}>重新輸入</button></div>}
+function JoinGate({user,onJoined,onSignOut}:{user:User;onJoined:(id:string)=>void;onSignOut:()=>void}){return <Gate title="加入共讀花園" detail="貼上邀請碼，或依序選擇花園主人給你的六個 emoji。"><JoinGardenForm user={user} onJoined={onJoined}/><button className="text-button full" onClick={onSignOut}>登出</button></Gate>}
 function Gate({title,detail,children}:{title:string;detail:string;children?:React.ReactNode}){return <main className="auth-gate"><div className="gate-card"><div className="gate-mark"><Leaf size={28}/></div><p className="eyebrow">LIFE STUDY TOGETHER</p><h1>{title}</h1><p className="muted">{detail}</p>{children}</div></main>}
 function authMessage(error:unknown){const code=typeof error==='object'&&error&&'code' in error?String(error.code):'';if(code==='auth/invalid-credential'||code==='auth/wrong-password'||code==='auth/user-not-found')return 'Email 或密碼不正確。';if(code==='auth/email-already-in-use')return '這個 Email 已有帳號，請返回登入或設定密碼。';if(code==='auth/weak-password')return '密碼至少需要 6 個字元。';if(code==='auth/invalid-email')return 'Email 格式不正確。';if(code==='auth/too-many-requests')return '嘗試次數太多，請稍後再試。';return '目前無法完成登入，請稍後再試。'}

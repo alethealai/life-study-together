@@ -17,7 +17,7 @@ export function privateProgress(m) {
     if (Date.parse(dates[i+1])-Date.parse(dates[i]) !== 86400000) break;
     length++;
   }
-  return {...result, lastReadDate:m.lastReadDate ?? null, streakEndDate:end, streakLength:length};
+  return {...result, onboardingComplete:m.onboardingComplete!==false, lastLogId:m.lastLogId??null, lastCorrection:m.lastCorrection??null, lastReadDate:m.lastReadDate ?? null, streakEndDate:end, streakLength:length};
 }
 
 export function writeMemberViews(tx, garden, m) {

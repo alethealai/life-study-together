@@ -1,3 +1,5 @@
+import {JOIN_EMOJIS,parseInviteCode} from './invite-code.mjs';
+export {JOIN_EMOJIS} from './invite-code.mjs';
 import {memberSummary, privateProgress} from '../functions/src/read-models.mjs';
 import type { User } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
@@ -10,7 +12,6 @@ import { db, functionsClient } from "./firebase";
 import { initial, type Garden } from "./garden";
 
 export const GARDEN_ID = "main";
-export const JOIN_EMOJIS=['🌱','🌷','🌻','🌳','🍀','🦋','🐈','🐢','🐇','⛵','🪐','⭐'];
 const gardenRef = (gardenId: string) => doc(db!, "gardens", gardenId);
 const memberRef = (gardenId: string, uid: string) => doc(db!, "gardens", gardenId, "members", uid);
 const userGardenRef = (uid:string,gardenId:string) => doc(db!,"users",uid,"gardens",gardenId);
@@ -47,7 +48,7 @@ export async function createNewGarden(user:User,data:{name:string;book:string;li
   const ref=doc(collection(db!,"gardens")),batch=writeBatch(db!);
   const plan={...initial().plan,book:data.book,lifeBook:data.lifeBook,bibleTarget:data.bibleTarget,lifeTarget:data.lifeTarget,enabledTracks:data.enabledTracks??['bible','life'],cwwlBookId:data.cwwlBookId??null,cwwlTarget:data.cwwlBookId?1:0};
   batch.set(ref,{...plan,name:data.name.trim(),inviteCode:code,ownerUid:user.uid,schemaVersion:2,planRevision:0,readingStarted:false,createdAt:serverTimestamp()});
-  addInitialMember(batch,ref.id,user.uid,{uid:user.uid,name:user.displayName||user.email?.split('@')[0]||'花園主人',email:user.email,role:'developer',baseBible:0,baseLife:0,bibleProgress:0,lifeProgress:0,bibleRead:0,lifeRead:0,readingDates:[],schemaVersion:2,revision:0,logCount:0,lastReadDate:null,joinedAt:serverTimestamp()});
+  addInitialMember(batch,ref.id,user.uid,{uid:user.uid,name:user.displayName||'花園主人',email:user.email,role:'developer',baseBible:0,baseLife:0,bibleProgress:0,lifeProgress:0,bibleRead:0,lifeRead:0,readingDates:[],schemaVersion:2,onboardingComplete:false,revision:0,logCount:0,lastReadDate:null,joinedAt:serverTimestamp()});
   batch.set(userGardenRef(user.uid,ref.id),{gardenId:ref.id,name:data.name.trim(),role:'developer',inviteCode:code,joinedAt:serverTimestamp()});
   batch.set(doc(db!,"gardenInvites",code),{gardenId:ref.id,name:data.name.trim(),active:true,createdAt:serverTimestamp()});
   await batch.commit();return ref.id;
@@ -62,16 +63,17 @@ export async function createGardenInvite(gardenId:string,uid:string,name:string)
   await batch.commit();return code;
 }
 export async function joinGarden(user:User,code:string){
-  const normalized=[...code].filter(x=>JOIN_EMOJIS.includes(x)).join('');
+  const parsed=parseInviteCode(code);if(!parsed.valid)throw new Error('請輸入六個不同的 emoji，並確認順序。');
+  const normalized=parsed.emojis.join('');
   const invite=await getDoc(doc(db!,"gardenInvites",normalized));
   if(!invite.exists()||invite.data().active!==true)throw new Error('找不到這個花園，請確認六個 emoji 的順序。');
   const gardenId=String(invite.data().gardenId);
   const existingMember=await getDoc(memberRef(gardenId,user.uid));
   const batch = writeBatch(db!);
   if(!existingMember.exists())addInitialMember(batch,gardenId,user.uid, {
-    uid:user.uid,name:user.displayName||user.email?.split('@')[0]||'新同伴',email:user.email,role:'member',joinCode:normalized,
+    uid:user.uid,name:user.displayName||'新同伴',email:user.email,role:'member',joinCode:normalized,
     baseBible: 0, baseLife: 0, bibleProgress: 0, lifeProgress: 0,
-    bibleRead: 0, lifeRead: 0, readingDates: [], schemaVersion:2, revision:0, logCount:0, lastReadDate:null, joinedAt: serverTimestamp(),
+    bibleRead: 0, lifeRead: 0, readingDates: [], schemaVersion:2, onboardingComplete:false, revision:0, logCount:0, lastReadDate:null, joinedAt: serverTimestamp(),
   });
   batch.set(userGardenRef(user.uid,gardenId),{gardenId,name:String(invite.data().name??'共讀花園'),role:existingMember.data()?.role??'member',joinedAt:serverTimestamp()},{merge:true});
   await batch.commit();

@@ -1,3 +1,4 @@
+import {createWithdrawalService} from './withdrawal.mjs';
 import {writeMemberViews, placementSummary} from './read-models.mjs';
 import {cwwlBook,cwwlLabel,enabledTracks,CWWL_STEP} from './cwwl.mjs';
 import { randomInt, randomUUID } from 'node:crypto';
@@ -35,9 +36,11 @@ export function createGardenService(db, now = () => new Date()) {
       const {g, m} = await state(tx, garden, member, uid);
       const previous = await tx.get(receipt);
       if (previous.exists) {
+        requireThat(!previous.data().withdrawn, '這筆閱讀已撤回，請重新填寫一筆正確紀錄。', 'failed-precondition');
         requireThat(previous.data().payload === payload, '同一請求代碼不能用於不同閱讀資料。', 'already-exists');
         return previous.data().result;
       }
+      requireThat(m.onboardingComplete !== false, '請先設定暱稱與起始進度。', 'failed-precondition');
       requireThat(data.expectedRevision === m.revision && data.planRevision === g.planRevision,
         '進度或共同計畫已在其他裝置更新，請重新開啟閱讀表單。', 'aborted');
       requireThat(data.date <= dateKey(now()) && m.joinedAt?.toDate
@@ -65,12 +68,12 @@ export function createGardenService(db, now = () => new Date()) {
       for (let i = streakRewards(m.readingDates) + 1; i <= streakRewards(dates); i++) {
         rewards.push({id:`${uid}-combo-${i}`, kind:'combo', ordinal:i, emoji:null, source:'連續閱讀 7 天 · 自選獎勵'});
       }
-      requireThat(rewards.length <= 400, '這次會產生太多獎勵，請分次記錄較小的閱讀範圍。');
+      requireThat(rewards.length <= 200, '這次會產生太多獎勵，請分次記錄較小的閱讀範圍。');
       const result = {gained:rewards.length, revision:m.revision + 1};
       tx.create(log, {uid, date:data.date, bible, life, cwwl, cwwlBookId:g.cwwlBookId??null, cwwlBook:cwwlLabel(g.cwwlBookId), cwwlPeriod:g.cwwlPeriod??0, beforeCwwl:m.cwwlProgress??0, afterCwwl:data.cwwl??0, note:data.note, book:g.book, lifeBook:g.lifeBook,
         planRevision:g.planRevision, biblePeriod:g.biblePeriod ?? 0, lifePeriod:g.lifePeriod ?? 0, beforeBible:m.bibleProgress, beforeLife:m.lifeProgress,
         afterBible:data.bible, afterLife:data.life, revision:result.revision, requestId:data.requestId,
-        rewardIds:rewards.map(r => r.id), createdAt:FieldValue.serverTimestamp()});
+        previousLogId:m.lastLogId??null, rewardIds:rewards.map(r => r.id), createdAt:FieldValue.serverTimestamp()});
       const memberChanges = {bibleProgress:data.bible, lifeProgress:data.life, cwwlProgress:data.cwwl??0, bibleRead, lifeRead, cwwlRead, readingDates:dates,
         revision:result.revision, logCount:m.logCount + 1, lastReadDate:dates.at(-1), lastLogId:log.id, inventoryRevision:(m.inventoryRevision ?? 0) + (rewards.length ? 1 : 0)};
       tx.update(member, memberChanges);
@@ -97,7 +100,7 @@ export function createGardenService(db, now = () => new Date()) {
       const changedBible = data.bible !== m.baseBible, changedLife = data.life !== m.baseLife;
       requireThat((!changedBible || m.bibleRead === (m.archivedBibleRead ?? 0)) && (!changedLife || m.lifeRead === (m.archivedLifeRead ?? 0)), '已有閱讀紀錄，無法修改加入前的起始位置。', 'failed-precondition');
       requireThat(data.bible <= CHAPTERS[BOOKS.indexOf(g.book)], '起始位置超出書卷範圍。');
-      const changes = {name:data.name.trim(), revision:m.revision + 1,
+      const changes = {name:data.name.trim(), onboardingComplete:true, revision:m.revision + 1,
         ...(changedBible ? {baseBible:data.bible, bibleProgress:data.bible} : {}),
         ...(changedLife ? {baseLife:data.life, lifeProgress:data.life} : {}),
         ...(changedCwwl ? {baseCwwl:data.cwwl,cwwlProgress:data.cwwl}: {})};
@@ -190,6 +193,7 @@ export function createGardenService(db, now = () => new Date()) {
       }
       const ref = garden.collection('rewards').doc(id), snapshot = await tx.get(ref);
       requireThat(snapshot.exists && snapshot.data().uid === uid, '只能修改自己的獎勵。', 'permission-denied');
+      requireThat(!data.placement || snapshot.data().placementId === data.id, '這個擺設已撤回，請重新整理。', 'failed-precondition');
       const r = snapshot.data(), placementId = r.placementId ?? randomUUID();
       let changes;
       if (data.action === 'choose') {
@@ -241,5 +245,5 @@ export function createGardenService(db, now = () => new Date()) {
       return {gained:0};
     });
   }
-  return {record, profile, updatePlan, reward, rename};
+  return {record, profile, updatePlan, reward, rename,...createWithdrawalService(db,refs,state,now)};
 }

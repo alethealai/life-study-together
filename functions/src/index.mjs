@@ -13,3 +13,6 @@ export const updateReadingPlan = onCall(options, request => service.updatePlan(r
 
 export const updateGardenReward = onCall(options, request => service.reward(request.auth?.uid, request.data));
 export const renameReadingGarden = onCall(options, request => service.rename(request.auth?.uid, request.data));
+
+export const previewReadingWithdrawal = onCall(options, request => service.previewWithdrawal(request.auth?.uid, request.data));
+export const withdrawReading = onCall(options, request => service.withdraw(request.auth?.uid, request.data));

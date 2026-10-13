@@ -64,7 +64,7 @@ test('reading, profile and plan transactions keep public and private summaries c
 
 test('projection forgery fails and initial membership requires an atomic safe projection',async()=>{
   await db.doc('gardenInvites/code').set({gardenId:'main',active:true});
-  const c=client('new'),m={...member('new'),joinedAt:serverTimestamp(),joinCode:'code'};
+  const c=client('new'),m={...member('new'),onboardingComplete:false,joinedAt:serverTimestamp(),joinCode:'code'};
   await assertFails(setDoc(doc(c,'gardens/main/members/new'),m));
   for(const extra of [{email:'leaked@example.com'},{bibleProgress:100}]){
     const batch=writeBatch(c);
@@ -153,7 +153,7 @@ test('membership in another garden does not grant access to this garden or its p
 
 test('full create/join batches support safe summaries and indexes, while ordinary member cannot create a garden',async()=>{
   const owner=client('owner'),batch=writeBatch(owner),gardenId='new-garden';
-  const m={...member('owner'),joinedAt:serverTimestamp()};
+  const m={...member('owner'),onboardingComplete:false,joinedAt:serverTimestamp()};
   batch.set(doc(owner,`gardens/${gardenId}`),{...plan,inviteCode:'🌱🌷🌻🌳🍀🦋'});
   batch.set(doc(owner,`gardens/${gardenId}/members/owner`),m);
   batch.set(doc(owner,`gardens/${gardenId}/memberSummaries/owner`),memberSummary(m));
@@ -161,7 +161,7 @@ test('full create/join batches support safe summaries and indexes, while ordinar
   batch.set(doc(owner,`users/owner/gardens/${gardenId}`),{gardenId,name:'New garden',role:'developer'});
   batch.set(doc(owner,'gardenInvites/🌱🌷🌻🌳🍀🦋'),{gardenId,active:true});
   await assertSucceeds(batch.commit());
-  const bob=client('bob'),join=writeBatch(bob),newMember={...member('bob'),joinedAt:serverTimestamp(),joinCode:'🌱🌷🌻🌳🍀🦋'};
+  const bob=client('bob'),join=writeBatch(bob),newMember={...member('bob'),onboardingComplete:false,joinedAt:serverTimestamp(),joinCode:'🌱🌷🌻🌳🍀🦋'};
   join.set(doc(bob,`gardens/${gardenId}/members/bob`),newMember);
   join.set(doc(bob,`gardens/${gardenId}/memberSummaries/bob`),memberSummary(newMember));
   join.set(doc(bob,`gardens/${gardenId}/members/bob/private/progress`),privateProgress(newMember));

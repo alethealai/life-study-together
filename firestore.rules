@@ -16,8 +16,8 @@ service cloud.firestore {
     function validName(name) { return name is string && name.size() > 0 && name.size() <= 40; }
     function initialMember(uid) {
       let d = request.resource.data;
-      return d.keys().hasOnly(['uid','name','email','role','joinCode','baseBible','baseLife','bibleProgress','lifeProgress','bibleRead','lifeRead','readingDates','joinedAt','schemaVersion','revision','logCount','lastReadDate'])
-        && d.uid == uid && d.email == request.auth.token.email && validName(d.name)
+      return d.keys().hasOnly(['uid','name','email','role','onboardingComplete','joinCode','baseBible','baseLife','bibleProgress','lifeProgress','bibleRead','lifeRead','readingDates','joinedAt','schemaVersion','revision','logCount','lastReadDate'])
+        && d.onboardingComplete == false && d.uid == uid && d.email == request.auth.token.email && validName(d.name)
         && d.baseBible == 0 && d.baseLife == 0 && d.bibleProgress == 0 && d.lifeProgress == 0
         && d.bibleRead == 0 && d.lifeRead == 0 && d.readingDates == [] && d.joinedAt == request.time
         && d.schemaVersion == 2 && d.revision == 0 && d.logCount == 0 && d.lastReadDate == null;
@@ -27,7 +27,7 @@ service cloud.firestore {
       return {'uid':m.uid, 'name':m.name, 'bibleProgress':0, 'lifeProgress':0, 'cwwlProgress':0, 'lastReadDate':null};
     }
     function initialProgress(m) {
-      return {'uid':m.uid, 'name':m.name, 'baseBible':0, 'baseLife':0, 'baseCwwl':0,
+      return {'uid':m.uid, 'name':m.name, 'onboardingComplete':false, 'lastLogId':null, 'lastCorrection':null, 'baseBible':0, 'baseLife':0, 'baseCwwl':0,
         'bibleProgress':0, 'lifeProgress':0, 'cwwlProgress':0, 'bibleRead':0, 'lifeRead':0, 'cwwlRead':0,
         'archivedBibleRead':0, 'archivedLifeRead':0, 'archivedCwwlRead':0,
         'revision':0, 'logCount':0, 'inventoryRevision':0, 'lastReadDate':null, 'streakEndDate':null, 'streakLength':0};
@@ -86,6 +86,11 @@ service cloud.firestore {
           allow get: if signedIn() && uid == request.auth.uid && member(gardenId);
           allow create: if viewId == 'progress' && initialView(gardenId,uid,false);
           allow update, delete, list: if false;
+        }
+        match /withdrawnReadings/{logId} {
+          allow get: if signedIn() && uid == request.auth.uid && member(gardenId);
+          allow list: if signedIn() && uid == request.auth.uid && member(gardenId) && smallPage();
+          allow write: if false;
         }
         match /requests/{requestId} { allow read, write: if false; }
         match /readingPeriods/{periodId} {

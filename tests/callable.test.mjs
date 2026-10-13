@@ -21,6 +21,7 @@ test('callable authenticates the SDK request and derives uid from its token',asy
     const payload={gardenId:'endpoint',requestId:randomUUID(),expectedRevision:0,planRevision:0,bible:3,life:0,date:'2026-10-11',note:''};
     await assert.rejects(record(payload),{code:'functions/unauthenticated'});
     await assert.rejects(reward({gardenId:'endpoint',action:'place',id:'x',x:0,y:0}),{code:'functions/unauthenticated'});
+    await assert.rejects(httpsCallable(functions,'previewReadingWithdrawal')({gardenId:'endpoint'}),{code:'functions/unauthenticated'});
     const {user}=await createUserWithEmailAndPassword(auth,`test-${randomUUID()}@example.com`,'emulator-only-password');
     await db.doc('gardens/endpoint').set({ownerUid:user.uid,book:'約翰福音',lifeBook:'約翰福音',bibleTarget:6,lifeTarget:16,bibleStep:3,lifeStep:3,schemaVersion:2,planRevision:0,readingStarted:false});
     await db.doc(`gardens/endpoint/members/${user.uid}`).set({uid:user.uid,name:'Test',baseBible:0,baseLife:0,bibleProgress:0,lifeProgress:0,bibleRead:0,lifeRead:0,readingDates:[],schemaVersion:2,revision:0,logCount:0,joinedAt:Timestamp.fromDate(new Date('2026-10-01'))});
@@ -39,5 +40,15 @@ test('callable authenticates the SDK request and derives uid from its token',asy
     assert.equal((await db.doc(`gardens/endpoint/members/${user.uid}`).get()).data().bibleProgress,0);
     assert.deepEqual((await record(payload)).data,{gained:1,revision:1});
     await assert.rejects(record({...payload,gardenId:'main',requestId:randomUUID()}),{code:'functions/permission-denied'});
+    const readingDate=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    await record({...payload,requestId:randomUUID(),expectedRevision:2,planRevision:1,date:readingDate});
+    const p=(await httpsCallable(functions,'previewReadingWithdrawal')({gardenId:'endpoint'})).data;
+    const withdrawal={gardenId:'endpoint',logId:p.logId,expectedRevision:p.expectedRevision,planRevision:p.planRevision,inventoryRevision:p.inventoryRevision};
+    const withdraw=httpsCallable(functions,'withdrawReading');
+    await assert.rejects(withdraw({...withdrawal,uid:'forged'}),{code:'functions/invalid-argument'});
+    assert.equal((await withdraw(withdrawal)).data.removedRewards,1);
+    assert.equal((await withdraw(withdrawal)).data.removedRewards,1);
+    assert.equal((await db.collection('gardens/endpoint/rewards').get()).size,1);
+
   } finally {await deleteApp(client);await db.terminate();await deleteAdmin(admin);}
 });

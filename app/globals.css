@@ -154,3 +154,5 @@ fieldset select{display:block;width:100%;max-width:100%;border:1px solid #d7ded1
 @media(max-width:380px){.shared-reading-goals>li{grid-template-columns:minmax(0,1fr)}.shared-reading-target{flex-direction:row;align-items:center;gap:12px}.reading-progress-card{padding:20px}}
 .page-controls { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:18px; }
 .page-controls [role="alert"] { flex-basis:100%; }
+
+.correction-notice{margin:20px auto;padding:20px 24px;max-width:1100px;border:1px solid #c5cfbc;border-radius:24px;background:#edf0e4}.correction-notice p{margin:8px 0 0}.correction-notice strong{font-weight:600}
