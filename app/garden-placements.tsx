@@ -2,8 +2,26 @@
 import {useEffect,useState} from 'react';
 import {getDocsFromServer,type QueryDocumentSnapshot} from 'firebase/firestore';
 import {db} from '@/lib/firebase';
-import {placementQuery} from '@/lib/reading-queries.mjs';
+import {placementQuery,gardenOccupancyQuery} from '@/lib/reading-queries.mjs';
 import type {Reward} from '@/lib/garden';
+
+export function useGardenOccupancy(gardenId:string,active:boolean,revision:number) {
+  const [attempt,setAttempt]=useState(0);
+  const key=`${gardenId}:${revision}:${attempt}`;
+  const [result,setResult]=useState({key:'',empty:false,error:''});
+  useEffect(()=>{
+    if(!active)return;
+    let cancelled=false;
+    getDocsFromServer(gardenOccupancyQuery(db!,gardenId)).then(snapshot=>{
+      if(!cancelled)setResult({key,empty:snapshot.empty,error:''});
+    }).catch(()=>{
+      if(!cancelled)setResult({key,empty:false,error:'無法確認花園擺設，請重試。'});
+    });
+    return()=>{cancelled=true};
+  },[active,gardenId,key]);
+  const current=active&&result.key===key;
+  return {empty:current&&result.empty,loading:active&&!current,error:current?result.error:'',refresh:()=>setAttempt(n=>n+1)};
+}
 
 // Only the visible rectangle (+ padding). No listener or scan over all earned rewards.
 export function usePlacements(gardenId:string,active:boolean,revision:number,view:{x:number;y:number;z:number},size:{w:number;h:number}) {

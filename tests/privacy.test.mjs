@@ -8,7 +8,7 @@ import {doc,getDoc,getDocs,collection,query,where,limit,setDoc,writeBatch,server
 import {createGardenService} from '../functions/src/service.mjs';
 import {memberSummary,privateProgress} from '../functions/src/read-models.mjs';
 import {migrateReadModels} from '../functions/src/migrate-read-models.mjs';
-import {privatePageQuery,placementQuery} from '../lib/reading-queries.mjs';
+import {privatePageQuery,placementQuery,gardenOccupancyQuery} from '../lib/reading-queries.mjs';
 const requireBackend=createRequire(new URL('../functions/package.json',import.meta.url));
 const {initializeApp,deleteApp}=requireBackend('firebase-admin/app');
 const {getFirestore,Timestamp}=requireBackend('firebase-admin/firestore');
@@ -124,6 +124,26 @@ test('concurrent overlapping placements only save one; no private/public diverge
   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
   assert.equal((await db.collection('gardens/main/placements').get()).size,1);
   assert.equal((await db.collection('gardens/main/rewards').where('x','==',null).get()).size,1);
+});
+
+test('whole-garden occupancy ignores viewport and becomes empty only after the last collect or withdrawal',async()=>{
+  const reader=client('bob'),probe=()=>getDocs(gardenOccupancyQuery(reader,'main'));
+  assert.equal((await probe()).empty,true);
+  await assertFails(getDocs(gardenOccupancyQuery(client('outsider'),'main')));
+  for(const uid of ['alice','bob'])await service.record(uid,input());
+  await service.reward('alice',{gardenId:'main',action:'place',id:'alice-bible-1',x:9000,y:9000});
+  await service.reward('bob',{gardenId:'main',action:'place',id:'bob-bible-1',x:9500,y:9500});
+  assert.equal((await probe()).size,1);
+  assert.equal((await getDocs(placementQuery(reader,'main',{left:-500,right:500,top:-500,bottom:500}))).empty,true);
+  await service.reward('alice',{gardenId:'main',action:'collect',id:'alice-bible-1'});
+  assert.equal((await probe()).empty,false);
+  const p=await service.previewWithdrawal('bob',{gardenId:'main'});
+  await service.withdraw('bob',{gardenId:'main',logId:p.logId,expectedRevision:p.expectedRevision,planRevision:p.planRevision,inventoryRevision:p.inventoryRevision});
+  assert.equal((await probe()).empty,true);
+  await service.reward('alice',{gardenId:'main',action:'place',id:'alice-bible-1',x:0,y:0});
+  assert.equal((await probe()).empty,false);
+  await service.reward('alice',{gardenId:'main',action:'collect',id:'alice-bible-1'});
+  assert.equal((await probe()).empty,true);
 });
 
 test('view migration preserves original readings/rewards and reuses opaque placement identity on rerun',async()=>{
