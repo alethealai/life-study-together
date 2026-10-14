@@ -155,4 +155,12 @@ fieldset select{display:block;width:100%;max-width:100%;border:1px solid #d7ded1
 .page-controls { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:18px; }
 .page-controls [role="alert"] { flex-basis:100%; }
 
-.correction-notice{margin:20px auto;padding:20px 24px;max-width:1100px;border:1px solid #c5cfbc;border-radius:24px;background:#edf0e4}.correction-notice p{margin:8px 0 0}.correction-notice strong{font-weight:600}
+/* Compact, non-modal reminder with breathing room on both desktop and mobile. */
+.correction-notice{box-sizing:border-box;width:min(360px,calc(100% - 40px));margin:16px auto 0;padding:12px 18px 16px;border:1px solid #ffffffb3;border-radius:24px;background:#f3f6eeeb;box-shadow:0 6px 24px #334b390a;color:#3e5748}
+.correction-notice-heading{display:flex;align-items:center;gap:8px;min-height:32px}
+.correction-notice-icon{display:grid;place-items:center;width:24px;height:24px;flex-shrink:0;border-radius:50%;background:#e0e9dc;color:#4d7556}
+.correction-notice strong{font-size:14px;font-weight:600}
+.correction-notice-close{display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;margin:-2px -6px -2px auto;border:0;background:transparent;color:#6a7b6e}
+.correction-notice-close:hover{background:#e4ecdf}
+.correction-notice p{margin:5px 0 0;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.correction-notice small{display:block;margin-top:6px;font-size:11px;line-height:1.6;color:#6b7b6f}
