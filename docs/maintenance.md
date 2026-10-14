@@ -140,3 +140,11 @@ node functions/migrate-read-models.mjs PROJECT_ID GARDEN_ID --apply-reviewed
 部署 `firestore.indexes.json` 並等索引建置完成，再部署配套 Functions、規則與 Hosting，驗收管理者與普通成員。新版前端、規則及 Functions 必須配套發布；不要單獨部署前端或回退成允許直接發獎的舊規則。
 
 `.github/workflows/pages.yml` 是既有 GitHub Pages 流程；Firebase Hosting 需另外發布。模擬器測試通過不等於已完成正式站與手機驗收。
+
+### 2026-10-14 首次新版部署
+
+Blaze 已啟用，正式站已部署配套 Hosting、Firestore 規則、4 個查詢索引與 7 個 asia-east1 函式。既有資料先完成本機備份與一致性核對，再升級 metadata 和讀取摘要；部署後逐欄比對原始資料，未改寫舊欄位。未保存書名的舊紀錄仍顯示「書卷未記錄」。備份與驗收報告保存在本機 Git 忽略的 `.firebase/release-20261014/`，不得提交或公開其中的帳號及資料內容。
+
+部署前 59 項模擬器測試通過。線上以隔離的臨時帳號及花園驗證登入、邀請加入、起始設定、閱讀更新、發獎及放置；另驗證原請求重試不新增紀錄或獎勵、跨花園與他人私人進度讀取被拒，以及直接建立獎勵被拒。首次加入發現待提交的本機索引快照可能提前觸發讀取，已改為等待伺服器提交確認，並用另一新帳號重測通過。
+
+Artifact Registry 已設定官方預設的一天建置映像清理政策。iPhone Safari 實機的鍵盤、觸控與跨裝置使用感受仍由封閉測試驗收。

@@ -34,8 +34,9 @@ export async function ensureLegacyGardenIndex(user:User){
   const m=membership.data() as Membership;
   await setDoc(userGardenRef(user.uid,GARDEN_ID),{gardenId:GARDEN_ID,name:String(garden.data()?.name??'共讀花園'),role:m.role,joinedAt:serverTimestamp()},{merge:true});
 }
+// Wait for membership/index writes to commit before subscribing to the new garden.
 export function watchUserGardens(uid:string,callback:(gardens:GardenSummary[])=>void,onError:(e:Error)=>void){
-  return onSnapshot(collection(db!,"users",uid,"gardens"),{includeMetadataChanges:true},s=>{if(s.metadata.fromCache)return;callback(s.docs.map(d=>{
+  return onSnapshot(collection(db!,"users",uid,"gardens"),{includeMetadataChanges:true},s=>{if(s.metadata.fromCache||s.metadata.hasPendingWrites)return;callback(s.docs.map(d=>{
     const x=d.data();return {id:d.id,name:String(x.name??'共讀花園'),role:x.role as Membership['role'],inviteCode:x.inviteCode?String(x.inviteCode):undefined};
   }))},onError);
 }
