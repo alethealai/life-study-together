@@ -164,3 +164,24 @@ fieldset select{display:block;width:100%;max-width:100%;border:1px solid #d7ded1
 .correction-notice-close:hover{background:#e4ecdf}
 .correction-notice p{margin:5px 0 0;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
 .correction-notice small{display:block;margin-top:6px;font-size:11px;line-height:1.6;color:#6b7b6f}
+
+/* Keep navigation and form controls usable on narrow phone screens. */
+@media(max-width:680px){
+  header{display:grid;grid-template-columns:minmax(0,1fr) auto auto}
+  header .brand-button,header .garden-title{min-width:0}
+  header .brand-button{justify-self:start;max-width:100%;min-height:44px}
+  header .brand-button>svg,header .brand-button>span:nth-child(2){flex-shrink:0}
+  header .developer-badge{display:none}
+  header nav button,.profile-button{min-height:44px}
+  .profile-button{min-width:44px}
+  input,textarea,select{font-size:16px}
+  .modal [data-slot="dialog-title"]{padding-right:28px;line-height:1.5}
+  .modal [data-slot="dialog-close"]{width:44px;height:44px;top:8px;right:8px;display:grid;place-items:center}
+  .emoji-code-slots button,.emoji-code-picker button{min-height:44px}
+  .emoji-code-slots,.emoji-code-picker{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .demo-label,.placing{width:max-content;max-width:calc(100% - 24px);white-space:normal}
+  .demo-label .mini,.placing .mini{flex-shrink:0;min-height:44px}
+  .canvas-controls button{min-height:44px;min-width:44px}
+  .gate-card{padding:32px 24px;min-width:0}
+  .auth-actions{flex-wrap:wrap}
+}
