@@ -11,7 +11,7 @@ export default function JoinGardenForm({user,onJoined}:{user:User;onJoined:(id:s
     e.preventDefault();if(!parsed.valid||busy)return;setBusy(true);setError('');
     try{onJoined(await joinGarden(user,selected.join('')))}catch(err){setError(err instanceof Error?err.message:'無法加入，請重試。')}finally{setBusy(false)}
   }}>
-    <label>花園邀請碼<input value={code} onChange={e=>setCode(e.target.value)} placeholder="貼上六個 emoji，或在下方依序選擇" autoComplete="off"/></label>
+    <label>花園邀請碼<input value={code} onChange={e=>setCode(e.target.value)} placeholder="貼上六個 emoji 或完整邀請文字" autoComplete="off"/></label>
     <div className="emoji-code"><div className="emoji-code-slots">{Array.from({length:6},(_,i)=><button key={i} type="button" aria-label={`邀請碼第 ${i+1} 格`} onClick={()=>setCode(selected.slice(0,i).join(''))}>{selected[i]??'·'}</button>)}</div>
       <div className="emoji-code-picker">{JOIN_EMOJIS.map(emoji=><button key={emoji} type="button" disabled={selected.includes(emoji)||selected.length>=6} onClick={()=>setCode([...selected,emoji].join(''))}>{emoji}</button>)}</div>
       <button className="text-button" type="button" onClick={()=>setCode('')}>重新輸入</button>
