@@ -16,3 +16,9 @@ export const renameReadingGarden = onCall(options, request => service.rename(req
 
 export const previewReadingWithdrawal = onCall(options, request => service.previewWithdrawal(request.auth?.uid, request.data));
 export const withdrawReading = onCall(options, request => service.withdraw(request.auth?.uid, request.data));
+
+import {createCrossGardenService} from './cross-garden.mjs';
+const crossGarden=createCrossGardenService(getFirestore());
+export const recordSharedReading = onCall(options, request => crossGarden.record(request.auth?.uid,request.data));
+export const previewSharedWithdrawal = onCall(options, request => crossGarden.previewWithdrawal(request.auth?.uid,request.data));
+export const withdrawSharedReading = onCall(options, request => crossGarden.withdraw(request.auth?.uid,request.data));

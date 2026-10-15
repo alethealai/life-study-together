@@ -39,8 +39,8 @@ export const db = firebaseApp ? getFirestore(firebaseApp) : null;
 export const functionsClient = firebaseApp ? getFunctions(firebaseApp, 'asia-east1') : null;
 const localRuntime = globalThis as typeof globalThis & {gardenEmulatorsConnected?:boolean};
 if (usingEmulators && typeof window !== 'undefined' && !localRuntime.gardenEmulatorsConnected) {
-  if (auth && !auth.emulatorConfig) connectAuthEmulator(auth, 'http://127.0.0.1:9099', {disableWarnings:true});
-  connectFirestoreEmulator(db!, '127.0.0.1', 8080);
-  connectFunctionsEmulator(functionsClient!, '127.0.0.1', 5001);
+  if (auth && !auth.emulatorConfig) connectAuthEmulator(auth, `http://127.0.0.1:${process.env.NEXT_PUBLIC_AUTH_EMULATOR_PORT??'9099'}`, {disableWarnings:true});
+  connectFirestoreEmulator(db!, '127.0.0.1', Number(process.env.NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT??8080));
+  connectFunctionsEmulator(functionsClient!, '127.0.0.1', Number(process.env.NEXT_PUBLIC_FUNCTIONS_EMULATOR_PORT??5001));
   localRuntime.gardenEmulatorsConnected = true;
 }

@@ -4,10 +4,11 @@ import {integer,fields,requireThat,streakRewards} from './validation.mjs';
 import {CWWL_STEP} from './cwwl.mjs';
 
 export function createWithdrawalService(db,refs,state,now) {
-  async function prepare(tx,garden,m,g,uid) {
+  async function prepare(tx,garden,m,g,uid,allowSync=false) {
     requireThat(typeof m.lastLogId==='string','目前沒有可撤回的新格式紀錄。','failed-precondition');
     const ref=garden.collection('logs').doc(m.lastLogId),snapshot=await tx.get(ref),l=snapshot.data();
     requireThat(snapshot.exists&&l.uid===uid&&m.logCount>0&&Array.isArray(l.rewardIds)&&typeof l.requestId==='string'&&/^[0-9a-f-]{36}$/.test(l.requestId),'這筆紀錄缺少更正資料，請聯絡管理者核對。','failed-precondition');
+    requireThat(!l.syncRequestId || allowSync,'這是跨花園閱讀，請從我的進度一起更正。','failed-precondition');
     const changes={revision:m.revision+1,logCount:m.logCount-1,inventoryRevision:(m.inventoryRevision??0)+1};
     for(const [kind,cap] of [['bible','Bible'],['life','Life'],['cwwl','Cwwl']]) {
       const amount=l[kind]??0, before=l[`before${cap}`], after=l[`after${cap}`];
@@ -57,25 +58,25 @@ export function createWithdrawalService(db,refs,state,now) {
       afterBible:changes.bibleProgress??m.bibleProgress,afterLife:changes.lifeProgress??m.lifeProgress,afterCwwl:changes.cwwlProgress??m.cwwlProgress??0,
       rewards:rewards.map(r=>({id:r.id,emoji:r.data().emoji,placed:r.data().x!==null})),removedPlacements:placements.length}};
   }
-  async function previewWithdrawal(uid,data) {
+  async function previewWithdrawal(uid,data,context={}) {
     fields(data,['gardenId']);const {garden,member}=refs(uid,data);
-    return db.runTransaction(async tx=>{
+    return (context.tx?fn=>fn(context.tx):fn=>db.runTransaction(fn))(async tx=>{
       const {g,m}=await state(tx,garden,member,uid);
-      return (await prepare(tx,garden,m,g,uid)).preview;
+      return (await prepare(tx,garden,m,g,uid,context.allowSync)).preview;
     });
   }
-  async function withdraw(uid,data) {
+  async function withdraw(uid,data,context={}) {
     const {garden,member}=refs(uid,data);
     fields(data,['gardenId','logId','expectedRevision','planRevision','inventoryRevision']);
     requireThat(typeof data.logId==='string'&&data.logId.length>0&&data.logId.length<300&&!data.logId.includes('/')
       &&[data.expectedRevision,data.planRevision,data.inventoryRevision].every(n=>integer(n,0,Number.MAX_SAFE_INTEGER)), '撤回資料格式不正確。');
     const receipt=member.collection('requests').doc(`withdraw-${data.logId}`);
-    return db.runTransaction(async tx=>{
+    return (context.tx?fn=>fn(context.tx):fn=>db.runTransaction(fn))(async tx=>{
       const {g,m}=await state(tx,garden,member,uid),previous=await tx.get(receipt);
       if(previous.exists)return previous.data().result;
       requireThat(m.lastLogId===data.logId&&m.revision===data.expectedRevision&&g.planRevision===data.planRevision
         &&(m.inventoryRevision??0)===data.inventoryRevision,'進度或擺設已更新，請重新查看撤回影響。','aborted');
-      const {ref,l,changes,rewards,placements}=await prepare(tx,garden,m,g,uid);
+      const {ref,l,changes,rewards,placements}=await prepare(tx,garden,m,g,uid,context.allowSync);
       const notice={id:ref.id,date:l.date,at:now().toISOString(),removedRewards:rewards.length,removedPlacements:placements.length,
         emojis:rewards.map(r=>r.data().emoji??'🎁').slice(0,12)};
       // Keep the original reading privately for recovery/audit; remove it from active totals.

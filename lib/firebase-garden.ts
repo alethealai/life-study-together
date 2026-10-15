@@ -128,3 +128,23 @@ export async function mutateGarden(gardenId:string, action:string, data:Record<s
   }
   return callMutation('updateGardenReward',{gardenId,action,...data});
 }
+
+// The personal overview needs only the plan and the signed-in reader's summary.
+export function watchOwnReading(gardenId:string,uid:string,callback:(garden:Garden)=>void,onError:(error:Error)=>void):Unsubscribe {
+  let root:Record<string,unknown>|null=null, own:Garden['members'][number]|null=null, stopped=false;
+  const emit=()=>{if(!stopped&&root&&own)callback({
+    plan:{book:String(root.book),lifeBook:String(root.lifeBook),bibleTarget:Number(root.bibleTarget),lifeTarget:Number(root.lifeTarget),bibleStep:Number(root.bibleStep),lifeStep:Number(root.lifeStep),revision:Number(root.planRevision??0),enabledTracks:(root.enabledTracks as string[])??['bible','life'],cwwlBookId:root.cwwlBookId==null?null:String(root.cwwlBookId),cwwlTarget:Number(root.cwwlTarget??0)},
+    members:[own],logs:[],rewards:[],
+  })};
+  const stops=[onSnapshotsInSync(db!,emit),
+    onSnapshot(gardenRef(gardenId),{includeMetadataChanges:true},snapshot=>{
+      if(snapshot.metadata.fromCache)return;
+      if(!snapshot.exists()){onError(new Error('找不到花園，請重新整理。'));return}root=snapshot.data();
+    },onError),
+    onSnapshot(doc(db!,'gardens',gardenId,'members',uid,'private','progress'),{includeMetadataChanges:true},snapshot=>{
+      if(snapshot.metadata.fromCache)return;
+      if(!snapshot.exists()){onError(new Error('個人進度尚未準備好，請重新整理。'));return}own={id:uid,...snapshot.data()} as Garden['members'][number];
+    },onError),
+  ];
+  return()=>{stopped=true;stops.forEach(stop=>stop())};
+}

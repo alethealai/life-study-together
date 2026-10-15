@@ -9,6 +9,7 @@ import {ensureLegacyGardenIndex,watchUserGardens,type GardenSummary} from '@/lib
 
 export default function Home(){
  const [user,setUser]=useState<User|null>(null),[gardens,setGardens]=useState<GardenSummary[]>([]),[activeId,setActiveId]=useState(''),[loading,setLoading]=useState(firebaseReady),[message,setMessage]=useState('');
+ const [page,setPage]=useState('garden');
  const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[creating,setCreating]=useState(false);
  useEffect(()=>{
   if(window.location.hostname==='alethealai.github.io'){window.location.replace('https://life-study-together.firebaseapp.com/');return}
@@ -38,7 +39,7 @@ export default function Home(){
  if(message)return <Gate title="暫時無法載入花園" detail={message}><button className="outline" onClick={()=>window.location.reload()}>重試</button><button className="text-button" onClick={()=>signOut(auth!)}>登出</button></Gate>;
  if(!gardens.length)return <JoinGate user={user} onJoined={selectGarden} onSignOut={()=>signOut(auth!)}/>;
  const active=gardens.find(g=>g.id===activeId)??gardens[0],isDeveloper=gardens.some(g=>g.role==='developer'||g.role==='owner');
- return <GardenApp key={`${user.uid}:${active.id}`} user={user} garden={active} gardens={gardens} isDeveloper={isDeveloper} onSelectGarden={selectGarden} onSignOut={()=>signOut(auth!)}/>;
+ return <GardenApp page={page} setPage={setPage} key={`${user.uid}:${active.id}`} user={user} garden={active} gardens={gardens} isDeveloper={isDeveloper} onSelectGarden={selectGarden} onSignOut={()=>signOut(auth!)}/>;
 }
 function JoinGate({user,onJoined,onSignOut}:{user:User;onJoined:(id:string)=>void;onSignOut:()=>void}){return <Gate title="加入共讀花園" detail="貼上邀請碼，或依序選擇花園主人給你的六個 emoji。"><JoinGardenForm user={user} onJoined={onJoined}/><button className="text-button full" onClick={onSignOut}>登出</button></Gate>}
 function Gate({title,detail,children}:{title:string;detail:string;children?:React.ReactNode}){return <main className="auth-gate"><div className="gate-card"><div className="gate-mark"><Leaf size={28}/></div><p className="eyebrow">LIFE STUDY TOGETHER</p><h1>{title}</h1><p className="muted">{detail}</p>{children}</div></main>}

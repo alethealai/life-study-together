@@ -229,3 +229,28 @@ button.catalog-title{min-height:44px}
 .companion-panel:focus-visible{outline:2px solid #508563;outline-offset:4px}
 
 .companion-overview{margin-top:22px;padding-top:22px}
+
+.companion-panel-own .progress-grid{margin-top:0}
+
+/* One reading card can belong to several gardens. */
+.reading-overview{display:flex;align-items:center;gap:36px;margin-top:30px;padding:28px 32px;border:1px solid #ffffffa6;border-radius:28px;background:#f5f8f0a6}
+.reading-overview>div{display:flex;align-items:center;gap:10px;color:#5d7364}
+.reading-overview strong{font-size:32px;font-weight:500;color:#355e43;font-variant-numeric:tabular-nums}
+.overview-icon{display:grid;place-items:center;width:44px;height:44px;background:#e0e9da;border-radius:50%}
+.reading-overview>p{margin:0 0 0 auto;color:#64746a;font-size:14px;line-height:1.8}
+.shared-intro{margin-top:20px}
+.shared-progress-grid{gap:24px;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))}
+.shared-reading-item{display:flex;flex-direction:column;min-width:0;border:1px solid #ffffffb3;border-radius:28px;overflow:hidden;background:#f8faf5a6}
+.shared-reading-item .reading-progress-card{flex:1;background:none;border:0;border-radius:0;box-shadow:none}
+.shared-gardens{min-height:100px;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:18px 24px;border-bottom:1px solid #d8e2d4;font-size:12px;color:#617665}
+.garden-chip{padding:5px 10px;background:#e3ebdd;border-radius:999px;color:#45694b}
+.shared-difference,.shared-pending{margin:0 20px 16px;padding:14px 16px;border:1px solid #d7cfb4;border-radius:18px;background:#f6f2e5;color:#706344;font-size:13px;line-height:1.7}
+.shared-difference p{margin:5px 0}
+.shared-correction{align-self:flex-start;margin:0 14px 14px;font-size:12px}
+.shared-success{display:flex;align-items:center;gap:10px;background:#e0eddc;padding:16px 20px;border-radius:20px;color:#355e43}
+.shared-impact{padding:16px 0;border-bottom:1px solid #c9d6c4}
+.modal .shared-difference{margin:16px 0}.modal .merge-confirm{display:flex;gap:10px;align-items:flex-start}.merge-confirm input{width:18px;min-width:18px;margin:6px 0 0;accent-color:#508563}
+.personal-garden-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:56px;padding-top:30px;border-top:1px solid #b9cbb7}.personal-garden-heading h2{font-size:19px;margin:0}
+@media(max-width:680px){.reading-overview{padding:22px;gap:20px;flex-wrap:wrap}.reading-overview>p{width:100%;margin:0}.reading-overview>div{gap:7px}.reading-overview strong{font-size:26px}.reading-overview>div>span:last-child{font-size:13px}.overview-icon{width:36px;height:36px}.shared-progress-grid{gap:20px}.personal-garden-heading{align-items:flex-start}.shared-gardens{padding:16px 20px}}
+
+@media(max-width:680px){.shared-gardens{min-height:0}}

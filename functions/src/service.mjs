@@ -22,7 +22,7 @@ export function createGardenService(db, now = () => new Date()) {
     validatePlan(g); validateMember(m, g);
     return { g, m };
   }
-  async function record(uid, data) {
+  async function record(uid, data, context = {}) {
     const {garden, member} = refs(uid, data);
     fields(data, ['gardenId', 'requestId', 'expectedRevision', 'planRevision', 'bible', 'life', 'date', 'note', ...(Object.hasOwn(data,'cwwl')?['cwwl']:[])]);
     requireThat(typeof data.requestId === 'string' && /^[0-9a-f-]{36}$/.test(data.requestId), '請求代碼不正確。');
@@ -32,7 +32,7 @@ export function createGardenService(db, now = () => new Date()) {
     const log = garden.collection('logs').doc(`${uid}-${data.requestId}`);
     // Canonical order makes exact retries independent of object key order.
     const payload = JSON.stringify([data.bible, data.life, data.date, data.note, data.expectedRevision, data.planRevision, ...(Object.hasOwn(data,'cwwl')?[data.cwwl]:[])]);
-    return db.runTransaction(async tx => {
+    return (context.tx ? fn => fn(context.tx) : fn => db.runTransaction(fn))(async tx => {
       const {g, m} = await state(tx, garden, member, uid);
       const previous = await tx.get(receipt);
       if (previous.exists) {
@@ -47,6 +47,17 @@ export function createGardenService(db, now = () => new Date()) {
         && data.date >= dateKey(m.joinedAt.toDate()), '閱讀日期須介於加入花園當天與今天之間。');
       requireThat(data.bible <= CHAPTERS[BOOKS.indexOf(g.book)] && data.bible >= m.bibleProgress && data.life >= m.lifeProgress,
         '進度不能倒退或超出書卷範圍。');
+      // Only the trusted cross-garden coordinator supplies an alignment baseline.
+      // Old differences are a baseline adjustment, never newly earned reading.
+      const baselineChanges = {};
+      if (context.baseline) {
+        const {kind, cap, from} = context.baseline;
+        const gap = from - (m[`${kind}Progress`] ?? 0);
+        requireThat(gap >= 0, '合併位置不能倒退。');
+        baselineChanges[`base${cap}`] = (m[`base${cap}`] ?? 0) + gap;
+        m[`base${cap}`] = baselineChanges[`base${cap}`];
+        m[`${kind}Progress`] = from;
+      }
       const bible = data.bible - m.bibleProgress, life = data.life - m.lifeProgress;
       const cwwl=(data.cwwl??0)-(m.cwwlProgress??0);
       requireThat(cwwl>=0 && (data.cwwl??0)<=(cwwlBook(g.cwwlBookId)?.count??0),'文集進度不能倒退或超出所選書目。');
@@ -70,11 +81,11 @@ export function createGardenService(db, now = () => new Date()) {
       }
       requireThat(rewards.length <= 200, '這次會產生太多獎勵，請分次記錄較小的閱讀範圍。');
       const result = {gained:rewards.length, revision:m.revision + 1};
-      tx.create(log, {uid, date:data.date, bible, life, cwwl, cwwlBookId:g.cwwlBookId??null, cwwlBook:cwwlLabel(g.cwwlBookId), cwwlPeriod:g.cwwlPeriod??0, beforeCwwl:m.cwwlProgress??0, afterCwwl:data.cwwl??0, note:data.note, book:g.book, lifeBook:g.lifeBook,
+      tx.create(log, {...(context.syncRequestId?{syncRequestId:context.syncRequestId}:{}),uid, date:data.date, bible, life, cwwl, cwwlBookId:g.cwwlBookId??null, cwwlBook:cwwlLabel(g.cwwlBookId), cwwlPeriod:g.cwwlPeriod??0, beforeCwwl:m.cwwlProgress??0, afterCwwl:data.cwwl??0, note:data.note, book:g.book, lifeBook:g.lifeBook,
         planRevision:g.planRevision, biblePeriod:g.biblePeriod ?? 0, lifePeriod:g.lifePeriod ?? 0, beforeBible:m.bibleProgress, beforeLife:m.lifeProgress,
         afterBible:data.bible, afterLife:data.life, revision:result.revision, requestId:data.requestId,
         previousLogId:m.lastLogId??null, rewardIds:rewards.map(r => r.id), createdAt:FieldValue.serverTimestamp()});
-      const memberChanges = {bibleProgress:data.bible, lifeProgress:data.life, cwwlProgress:data.cwwl??0, bibleRead, lifeRead, cwwlRead, readingDates:dates,
+      const memberChanges = {...baselineChanges,bibleProgress:data.bible, lifeProgress:data.life, cwwlProgress:data.cwwl??0, bibleRead, lifeRead, cwwlRead, readingDates:dates,
         revision:result.revision, logCount:m.logCount + 1, lastReadDate:dates.at(-1), lastLogId:log.id, inventoryRevision:(m.inventoryRevision ?? 0) + (rewards.length ? 1 : 0)};
       tx.update(member, memberChanges);
       writeMemberViews(tx, garden, {...m,...memberChanges});
